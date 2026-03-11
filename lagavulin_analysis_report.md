@@ -195,13 +195,6 @@ $$FinalDamage = \lfloor (BaseDamage + Strength) \times VulnerableMultiplier \rfl
 | 最优策略 | **力量组卡组** |
 | 数值冗余度 | **~15%** |
 
-**最终评价**: 乐嘉维林是一个设计**极其优秀**的敌人，它:
-- 惩罚单一build (防战/力战)
-- 鼓励多样策略 (同时需要力量和敏捷)
-- 创造时间压力 (软狂暴机制)
-
-这是Roguelike游戏数值设计的典范。
-
 ---
 
 *数据来源: Slay the Spire Simulator 5000场战斗模拟*
