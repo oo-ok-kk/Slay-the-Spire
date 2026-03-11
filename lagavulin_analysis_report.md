@@ -16,6 +16,22 @@
 
 ## 二、核心发现
 
+### 伤害结算公式
+
+本项目通过逆向工程还原的核心伤害计算公式：
+
+$$FinalDamage = \lfloor (BaseDamage + Strength) \times VulnerableMultiplier \rfloor$$
+
+其中：
+- $BaseDamage$ = 卡牌基础伤害
+- $Strength$ = 力量属性加成
+- $VulnerableMultiplier$ = 易伤倍率（1.5）
+
+**实际应用示例**：
+- Strike (6伤害) + 3力量 + 敌人易伤 = ⌊(6 + 3) × 1.5⌋ = **13 伤害**
+
+---
+
 ### 2.1 软狂暴判定（Soft Enrage Threshold）
 
 **问题**: 铁甲战士必须在第几次"灵魂虹吸"前结束战斗？
