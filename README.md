@@ -46,6 +46,9 @@ $$FinalDamage = \lfloor (BaseDamage + Strength) \times VulnerableMultiplier \rfl
 - **力量增长函数**: $Damage \propto Strength \times Cards\_Played$
 - **防御方差**: BPE < 4.0 时进入"数值死锁"
 
+#### 伤害效率公式
+$$\text{Damage Efficiency} = \frac{\sum (\text{Damage Output} \times \text{Success Rate})}{\text{Energy Cost} + \text{Opportunity Cost}}$$
+
 ## 文件结构
 
 ```
