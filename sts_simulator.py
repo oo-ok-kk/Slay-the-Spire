@@ -277,3 +277,245 @@ def run_tests():
 
 if __name__ == "__main__":
     run_tests()
+
+
+# ==================== Task 3: 战斗模拟器 ====================
+
+import csv
+import random
+from collections import Counter
+
+
+class BattleSim:
+    """
+    战斗模拟器 - 测试力量流卡组稳定性
+    
+    实验设定:
+    - 卡组: 5张《打击》, 5张《防御》, 2张《燃烧》(增加2力量)
+    - 敌人: 100HP, 每回合固定造成8点伤害
+    - 模拟: 5000场战斗
+    - 策略: 贪婪算法（优先打力量牌，其次打伤害牌）
+    """
+    
+    def __init__(self, card_data: dict):
+        self.card_data = card_data
+        self.card_library = {}
+        
+        # 加载卡牌到库
+        for card_info in card_data['cards']:
+            self.card_library[card_info['name']] = Card(
+                name=card_info['name'],
+                rarity=card_info['rarity'],
+                card_type=card_info['type'],
+                cost=card_info['cost'],
+                damage=card_info['damage'],
+                damage_upgraded=card_info['damage_upgraded'],
+                block=card_info.get('block', 0),
+                block_upgraded=card_info.get('block_upgraded', 0),
+                effect=card_info.get('effect', ''),
+                description=card_info.get('description', '')
+            )
+    
+    def create_deck(self) -> List[Card]:
+        """
+        创建卡组:
+        - 5张 Strike (打击)
+        - 5张 Defend (防御)
+        - 2张 Inflame (燃烧, +2力量)
+        """
+        deck = []
+        
+        # 5张打击
+        for _ in range(5):
+            deck.append(self.card_library['Strike'])
+        
+        # 5张防御
+        for _ in range(5):
+            deck.append(self.card_library['Defend'])
+        
+        # 2张燃烧
+        for _ in range(2):
+            deck.append(self.card_library['Inflame'])
+        
+        return deck
+    
+    def greedy_play(self, hand: List[Card], player: Entity, enemy: Entity) -> List[Card]:
+        """
+        贪婪算法打牌:
+        1. 优先打力量牌 (Power)
+        2. 其次打伤害最高的牌
+        """
+        # 按优先级排序
+        # 优先级: Power(力量) > Attack(攻击) > Skill(防御)
+        sorted_hand = sorted(hand, key=lambda c: (
+            0 if c.card_type == 'Power' else  1 if c.card_type == 'Attack' else 2,
+            -(c.base_damage + c.base_block)  # 伤害/格挡高的优先
+        ))
+        
+        return sorted_hand
+    
+    def simulate_battle(self, player_hp: int = 80, enemy_hp: int = 100, enemy_damage: int = 8) -> dict:
+        """
+        单场战斗模拟
+        
+        Returns:
+            dict: {
+                'win': bool,           # 是否胜利
+                'turns': int,          # 回合数
+                'damage_taken': int,   # 受到的伤害
+                'final_hp': int        # 剩余HP
+            }
+        """
+        # 初始化
+        player = Entity(name="Ironclad", hp=player_hp, max_hp=player_hp)
+        enemy = Entity(name="Enemy", hp=enemy_hp, max_hp=enemy_hp)
+        
+        # 创建卡组并洗牌
+        deck = self.create_deck()
+        draw_pile = deck.copy()
+        random.shuffle(draw_pile)
+        discard_pile = []
+        hand = []
+        
+        turn = 0
+        total_damage_taken = 0
+        
+        while player.is_alive() and enemy.is_alive():
+            turn += 1
+            
+            # 回合开始
+            player.start_turn()
+            enemy.start_turn()
+            
+            # 抽牌 (每回合抽5张)
+            for _ in range(5):
+                if not draw_pile:
+                    if discard_pile:
+                        draw_pile = discard_pile.copy()
+                        random.shuffle(draw_pile)
+                        discard_pile = []
+                    else:
+                        break
+                hand.append(draw_pile.pop())
+            
+            # 贪婪打牌
+            cards_to_play = self.greedy_play(hand.copy(), player, enemy)
+            
+            for card in cards_to_play:
+                if not player.is_alive() or not enemy.is_alive():
+                    break
+                
+                apply_card(card, player, enemy)
+                hand.remove(card)
+                discard_pile.append(card)
+                
+                # 敌人死亡，跳出
+                if not enemy.is_alive():
+                    break
+            
+            # 敌人攻击
+            if enemy.is_alive():
+                damage_taken = enemy.take_damage(enemy_damage)
+                total_damage_taken += damage_taken
+            
+            # 弃掉剩余手牌
+            discard_pile.extend(hand)
+            hand = []
+        
+        return {
+            'win': enemy.hp <= 0,
+            'turns': turn,
+            'damage_taken': total_damage_taken,
+            'final_hp': player.hp
+        }
+    
+    def run_simulation(self, num_battles: int = 5000, output_file: str = "sim_results.csv") -> dict:
+        """
+        运行多场战斗模拟
+        
+        Args:
+            num_battles: 战斗场数
+            output_file: 输出CSV文件名
+        
+        Returns:
+            dict: 统计结果
+        """
+        print(f"{'='*60}")
+        print(f"战斗模拟开始")
+        print(f"{'='*60}")
+        print(f"卡组: 5 Strike + 5 Defend + 2 Inflame")
+        print(f"敌人: 100HP, 每回合伤害 8")
+        print(f"模拟场次: {num_battles}")
+        print(f"{'='*60}\n")
+        
+        results = []
+        wins = 0
+        total_damage = 0
+        total_turns = 0
+        
+        for i in range(num_battles):
+            result = self.simulate_battle()
+            results.append({
+                'battle_id': i + 1,
+                'win': result['win'],
+                'turns': result['turns'],
+                'damage_taken': result['damage_taken'],
+                'final_hp': result['final_hp']
+            })
+            
+            if result['win']:
+                wins += 1
+            total_damage += result['damage_taken']
+            total_turns += result['turns']
+            
+            # 进度显示
+            if (i + 1) % 1000 == 0:
+                print(f"进度: {i+1}/{num_battles} ({100*(i+1)//num_battles}%)")
+        
+        # 保存CSV
+        with open(output_file, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=['battle_id', 'win', 'turns', 'damage_taken', 'final_hp'])
+            writer.writeheader()
+            writer.writerows(results)
+        
+        # 统计结果
+        stats = {
+            'total_battles': num_battles,
+            'wins': wins,
+            'win_rate': wins / num_battles * 100,
+            'avg_damage_taken': total_damage / num_battles,
+            'avg_turns': total_turns / num_battles,
+            'output_file': output_file
+        }
+        
+        return stats
+
+
+def run_battle_sim():
+    """运行战斗模拟测试"""
+    # 加载数据
+    card_data = load_card_data()
+    
+    # 创建模拟器
+    sim = BattleSim(card_data)
+    
+    # 运行5000场战斗
+    stats = sim.run_simulation(num_battles=5000, output_file='sim_results.csv')
+    
+    # 输出结果
+    print(f"\n{'='*60}")
+    print(f"模拟结果统计")
+    print(f"{'='*60}")
+    print(f"总战斗场数: {stats['total_battles']}")
+    print(f"胜利场数: {stats['wins']}")
+    print(f"胜率: {stats['win_rate']:.2f}%")
+    print(f"平均损血量: {stats['avg_damage_taken']:.2f}")
+    print(f"平均回合数: {stats['avg_turns']:.2f}")
+    print(f"结果已保存至: {stats['output_file']}")
+    print(f"{'='*60}")
+
+
+if __name__ == "__main__":
+    # 可以选择运行哪个测试
+    # run_tests()           # 单元测试
+    run_battle_sim()       # 战斗模拟
