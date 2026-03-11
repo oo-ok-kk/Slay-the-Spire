@@ -519,3 +519,202 @@ if __name__ == "__main__":
     # 可以选择运行哪个测试
     # run_tests()           # 单元测试
     run_battle_sim()       # 战斗模拟
+
+
+# ==================== Task 5: Lagavulin 敌人模拟 ====================
+
+@dataclass
+class Lagavulin(Entity):
+    """
+    乐嘉维林 (Lagavulin) - 洞穴第三层Boss前小怪
+    
+    属性:
+    - 110 HP (进阶0级基准)
+    - 沉睡状态 (Asleep): 前3回合不行动，除非受到伤害
+    
+    攻击循环:
+    - 回合1-2: 造成18点伤害
+    - 回合3: 灵魂虹吸 (Siphon Soul) - 玩家力量-1，敏捷-1
+    - 循环
+    """
+    
+    def __init__(self):
+        super().__init__(
+            name="Lagavulin",
+            hp=110,
+            max_hp=110
+        )
+        self.metallicize: int = 8  # 金属化：每回合结束获得8格挡
+        self.is_asleep: bool = True  # 初始沉睡
+        self.turn_counter: int = 0   # 回合计数器
+        self.total_damage_dealt: int = 0  # 累计伤害
+        self.siphon_count: int = 0  # 灵魂虹吸次数
+    
+    def start_turn(self) -> 'Lagavulin':
+        """回合开始"""
+        self.turn_counter += 1
+        self.block = 0  # 重置格挡
+        
+        # 沉睡逻辑：如果受到伤害则唤醒
+        if self.is_asleep:
+            print(f"  [Lagavulin 沉睡中...]")
+        
+        return self
+    
+    def take_damage(self, damage: int) -> int:
+        """受到伤害时唤醒"""
+        actual = super().take_damage(damage)
+        if self.is_asleep and damage > 0:
+            self.is_asleep = False
+            print(f"  [Lagavulin 被惊醒！]")
+        return actual
+    
+    def take_turn(self, player: Entity) -> dict:
+        """
+        执行敌人回合
+        返回: {'action': str, 'damage': int, 'effects': list}
+        """
+        result = {
+            'action': 'none',
+            'damage': 0,
+            'effects': []
+        }
+        
+        # 沉睡中不行动
+        if self.is_asleep:
+            result['action'] = 'asleep'
+            print(f"  Lagavulin 回合 {self.turn_counter}: 沉睡中，不行动")
+            # 沉睡时仍获得金属化
+            self.add_block(self.metallicize)
+            print(f"    金属化: +{self.metallicize} 格挡")
+            return result
+        
+        # 攻击循环模式
+        # 回合1, 2: 18伤害
+        # 回合3: 灵魂虹吸 (Siphon Soul)
+        cycle_turn = ((self.turn_counter - 1) % 3) + 1  # 1, 2, 3循环
+        
+        if cycle_turn in [1, 2]:
+            # 普通攻击
+            damage = 18
+            actual_damage = player.take_damage(damage)
+            self.total_damage_dealt += actual_damage
+            result['action'] = 'attack'
+            result['damage'] = actual_damage
+            print(f"  Lagavulin 回合 {self.turn_counter}: 攻击造成 {actual_damage} 伤害")
+        
+        elif cycle_turn == 3:
+            # 灵魂虹吸
+            player.strength -= 1
+            # 注意：杀戮尖塔中敏捷(Dexterity)会减少格挡
+            # 但这里简化为只有力量
+            self.siphon_count += 1
+            result['action'] = 'siphon'
+            result['effects'] = ['player_strength_-1']
+            print(f"  Lagavulin 回合 {self.turn_counter}: 灵魂虹吸！玩家力量-1")
+        
+        # 回合结束时获得金属化
+        self.add_block(self.metallicize)
+        print(f"    金属化: +{self.metallicize} 格挡 (总格挡: {self.block})")
+        
+        return result
+    
+    def get_status(self) -> str:
+        """获取状态描述"""
+        status = f"Lagavulin HP:{self.hp}/{self.max_hp}"
+        if self.is_asleep:
+            status += " [沉睡]"
+        status += f" | 累计伤害:{self.total_damage_dealt} | 虹吸次数:{self.siphon_count}"
+        return status
+
+
+def simulate_lagavulin_battle():
+    """模拟乐嘉维林战斗 - 验证第10回合的累计压力"""
+    print("=" * 70)
+    print("Task 5: 乐嘉维林 (Lagavulin) 战斗模拟")
+    print("=" * 70)
+    print("敌人: Lagavulin")
+    print("  - 110 HP")
+    print("  - 初始沉睡，前3回合不行动（除非受到伤害）")
+    print("  - 回合1-2: 18伤害")
+    print("  - 回合3: 灵魂虹吸 (力量-1)")
+    print("  - 回合结束: 金属化 +8 格挡")
+    print("=" * 70)
+    
+    # 加载卡牌数据
+    card_data = load_card_data()
+    card_library = {}
+    for card_info in card_data['cards']:
+        card_library[card_info['name']] = Card(
+            name=card_info['name'],
+            rarity=card_info['rarity'],
+            card_type=card_info['type'],
+            cost=card_info['cost'],
+            damage=card_info['damage'],
+            damage_upgraded=card_info['damage_upgraded'],
+            block=card_info.get('block', 0),
+            block_upgraded=card_info.get('block_upgraded', 0),
+            effect=card_info.get('effect', ''),
+            description=card_info.get('description', '')
+        )
+    
+    # 创建玩家和敌人
+    player = Entity(name="Ironclad", hp=80, max_hp=80, strength=0)
+    lagavulin = Lagavulin()
+    
+    # 玩家卡组（简单攻击卡牌用于唤醒）
+    strike_card = card_library['Strike']
+    
+    print(f"\n【初始状态】")
+    print(f"  玩家: {player}")
+    print(f"  敌人: {lagavulin.get_status()}")
+    
+    # 模拟10回合
+    print(f"\n{'='*70}")
+    print("战斗过程")
+    print("=" * 70)
+    
+    for turn in range(1, 11):
+        print(f"\n--- 回合 {turn} ---")
+        
+        # 玩家回合
+        player.start_turn()
+        
+        # 玩家攻击以唤醒沉睡敌人
+        if lagavulin.is_asleep:
+            print(f"  玩家攻击以唤醒 Lagavulin...")
+            apply_card(strike_card, player, lagavulin)
+            print(f"    造成 {strike_card.base_damage} 伤害")
+        
+        # 敌人回合
+        lagavulin.start_turn()
+        lagavulin.take_turn(player)
+        
+        print(f"  玩家状态: {player}")
+        print(f"  敌人状态: {lagavulin.get_status()}")
+    
+    # 第10回合总结
+    print(f"\n{'='*70}")
+    print(f"【第10回合总结】")
+    print(f"{'='*70}")
+    print(f"  玩家剩余HP: {player.hp}/{player.max_hp}")
+    print(f"  玩家损失HP: {player.max_hp - player.hp}")
+    print(f"  玩家剩余力量: {player.strength}")
+    print(f"  Lagavulin 剩余HP: {lagavulin.hp}/{lagavulin.max_hp}")
+    print(f"  累计造成伤害: {lagavulin.total_damage_dealt}")
+    print(f"  灵魂虹吸次数: {lagavulin.siphon_count}")
+    print(f"\n【数值压力分析】")
+    print(f"  前10回合平均伤害/回合: {lagavulin.total_damage_dealt / 10:.1f}")
+    
+    # 计算实际战斗回合（唤醒后的回合）
+    active_turns = max(0, turn - 3)  # 假设在第3回合被唤醒
+    print(f"  沉睡回合数: 3")
+    print(f"  实际行动回合数: {active_turns}")
+    if active_turns > 0:
+        print(f"  行动回合平均伤害: {lagavulin.total_damage_dealt / active_turns:.1f}")
+    print(f"{'='*70}")
+
+
+if __name__ == "__main__":
+    # 运行 Lagavulin 模拟
+    simulate_lagavulin_battle()
